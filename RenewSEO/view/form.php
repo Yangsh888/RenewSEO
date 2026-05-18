@@ -695,7 +695,7 @@ use TypechoPlugin\RenewSEO\Text;
                 <div class="renewseo-block-item group-indexnow-push">
                     <div class="renewseo-list-item-meta">
                         <h4 class="renewseo-list-item-title">IndexNow 密钥</h4>
-                        <p class="renewseo-list-item-desc">插件会在站点根目录生成并维护 `<key>.txt` 验证文件。</p>
+                        <p class="renewseo-list-item-desc">插件会在站点根目录生成并维护 "&lt;key&gt;.txt" 验证文件。</p>
                     </div>
                     <input type="text" name="indexNowKey" value="<?php echo Text::e($settings['indexNowKey']); ?>" class="renewseo-input w-full">
                 </div>
