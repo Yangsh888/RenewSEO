@@ -37,7 +37,7 @@ class Plugin implements PluginInterface
         Helper::removeRoute('renew_seo_action');
         Helper::addRoute('renew_seo_action', '/action/renew-seo', Action::class, 'action');
         Helper::removePanel(3, 'RenewSEO/Panel.php');
-        Helper::addPanel(3, 'RenewSEO/Panel.php', 'SEO 中心', 'SEO 中心', 'administrator');
+        Helper::addPanel(3, 'RenewSEO/Panel.php', 'SEO 中心', 'SEO 中心', 'administrator', false, '', ['icon' => 'i-search']);
         Files::sync('activate', true);
         return _t('RenewSEO 已启用');
     }
