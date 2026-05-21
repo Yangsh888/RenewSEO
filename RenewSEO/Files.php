@@ -8,7 +8,6 @@ use Typecho\Db;
 use Typecho\Router;
 use Typecho\Router\ParamsDelegateInterface;
 use Utils\Helper;
-use Widget\Base\Options as OptionsStorage;
 use Widget\Contents\Page\Rows as PageRows;
 use Widget\Metas\Category\Rows as CategoryRows;
 use Widget\Metas\Tag\Cloud as TagCloud;
@@ -734,6 +733,7 @@ class Files
     private static function storeStateOption(array $state): void
     {
         try {
+            $db = Db::get();
             $value = \Typecho\Common::jsonEncode([
                 'pendingAt' => (int) ($state['pendingAt'] ?? 0),
                 'lastSyncAt' => (int) ($state['lastSyncAt'] ?? 0),
@@ -745,7 +745,22 @@ class Files
                     static fn(string $item): bool => $item !== ''
                 ),
             ], 0, '{}');
-            OptionsStorage::alloc()->saveOptions([self::STATE_OPTION => $value]);
+
+            $affected = $db->query(
+                $db->update('table.options')->rows(['value' => $value])
+                    ->where('name = ?', self::STATE_OPTION)
+                    ->where('user = ?', 0)
+            );
+
+            if ($affected === 0) {
+                $db->query(
+                    $db->insert('table.options')->rows([
+                        'name' => self::STATE_OPTION,
+                        'value' => $value,
+                        'user' => 0,
+                    ])
+                );
+            }
         } catch (\Throwable $e) {
             Settings::report('files.state.option.write', $e);
         }
