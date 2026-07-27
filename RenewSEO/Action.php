@@ -23,6 +23,7 @@ class Action extends \Typecho\Widget
         }
 
         $this->guard();
+        $this->requirePost();
 
         switch ($do) {
             case 'save':
@@ -54,6 +55,11 @@ class Action extends \Typecho\Widget
 
     private function async(): void
     {
+        if (!$this->request->isPost()) {
+            $this->response->setStatus(405);
+            $this->response->throwJson(['ok' => false, 'message' => 'Method Not Allowed']);
+        }
+
         $data = $this->request->getJsonBody();
         $token = (string) ($data['token'] ?? '');
         $ts = (int) ($data['ts'] ?? 0);
@@ -84,10 +90,6 @@ class Action extends \Typecho\Widget
 
     private function save(): void
     {
-        if (!$this->request->isPost()) {
-            $this->notice('保存操作必须通过 POST 提交', 'error');
-        }
-
         $previous = Settings::loadFresh();
         $data = [];
         foreach (Settings::boolKeys() as $key) {
@@ -141,6 +143,18 @@ class Action extends \Typecho\Widget
     {
         User::alloc()->pass('administrator');
         Security::alloc()->protect();
+    }
+
+    private function requirePost(): void
+    {
+        if ($this->request->isPost()) {
+            return;
+        }
+
+        $this->response->setStatus(405)->throwContent(
+            '该操作必须通过 POST 提交',
+            'text/plain'
+        );
     }
 
     private function notice(string $message, string $type = 'success'): void

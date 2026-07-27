@@ -144,16 +144,17 @@ class Push
 
     public static function makeAsyncToken(int $ts): string
     {
-        $secret = (string) (Helper::options()->secret ?? Settings::siteHost());
-        return hash_hmac('sha256', 'renewseo|' . $ts, $secret);
+        return self::tokenForSecret($ts, trim((string) (Helper::options()->secret ?? '')));
     }
 
     public static function verifyAsyncToken(int $ts, string $token): bool
     {
-        if ($ts <= 0 || abs(time() - $ts) > 300) {
+        if ($ts <= 0 || $token === '' || abs(time() - $ts) > 300) {
             return false;
         }
-        return hash_equals(self::makeAsyncToken($ts), $token);
+
+        $expected = self::makeAsyncToken($ts);
+        return $expected !== '' && hash_equals($expected, $token);
     }
 
     private static function task(): array
@@ -192,6 +193,10 @@ class Push
 
     private static function shouldDispatchAsync(array $settings): bool
     {
+        if (trim((string) (Helper::options()->secret ?? '')) === '') {
+            return false;
+        }
+
         if (!empty($settings['baiduEnable']) && !empty($settings['baiduToken'])) {
             return true;
         }
@@ -205,6 +210,11 @@ class Push
         }
 
         return false;
+    }
+
+    private static function tokenForSecret(int $ts, string $secret): string
+    {
+        return $secret === '' ? '' : hash_hmac('sha256', 'renewseo|' . $ts, $secret);
     }
 
     private static function pushBaidu(array $items, array $settings): ?array
