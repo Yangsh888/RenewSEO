@@ -57,6 +57,10 @@ class Files
         'hashes' => [],
     ];
 
+    private static array $sitemapCategories = [];
+
+    private static array $sitemapCategoryDirectories = [];
+
     public static function sync(string $reason = 'manual', bool $force = false, bool $writeInfoLog = true): array
     {
         return self::withSyncLock(static fn(): array => self::syncUnlocked($reason, $force, $writeInfoLog));
@@ -65,6 +69,8 @@ class Files
     private static function syncUnlocked(string $reason, bool $force, bool $writeInfoLog): array
     {
         $settings = Settings::load();
+        self::$sitemapCategories = [];
+        self::$sitemapCategoryDirectories = [];
 
         if (($settings['enabled'] ?? '1') !== '1') {
             self::removeGeneratedUnlocked($settings);
@@ -100,7 +106,9 @@ class Files
             }
 
             foreach (self::buildSitemapFiles($settings) as $name => $content) {
-                $desired[$name] = $content;
+                $desired[$name] = null;
+                $hashes[$name] = sha1($content);
+                self::writeFile($name, $content, $settings);
             }
 
             $keyPath = Settings::keyRelativePath($settings);
@@ -109,6 +117,10 @@ class Files
             }
 
             foreach ($desired as $relative => $content) {
+                if (isset($hashes[$relative])) {
+                    continue;
+                }
+
                 $hashes[$relative] = sha1($content);
                 self::writeFile($relative, $content, $settings);
             }
@@ -325,65 +337,81 @@ class Files
         ], $settings);
     }
 
-    private static function buildSitemapFiles(array $settings): array
+    private static function buildSitemapFiles(array $settings): \Generator
     {
         if (($settings['sitemapEnable'] ?? '1') !== '1') {
-            return [];
+            return;
         }
 
-        $entries = self::sitemapEntries($settings);
         $limit = max(100, min(50000, (int) ($settings['sitemapSplit'] ?? 1000)));
-        $chunks = array_chunk($entries, $limit);
-        $files = [];
+        $seen = [];
+        $locs = [];
+        $chunk = [];
+        $index = [];
+        $chunkCount = 0;
 
-        if (empty($chunks)) {
-            $chunks = [[]];
+        foreach (self::generateEntries($settings) as $entry) {
+            $loc = (string) ($entry['loc'] ?? '');
+            if ($loc === '' || isset($seen[$loc])) {
+                continue;
+            }
+
+            $seen[$loc] = true;
+            $locs[] = $loc;
+            $chunk[] = $entry;
+
+            if (count($chunk) > $limit) {
+                $chunkCount++;
+                $name = 'sitemap-' . $chunkCount . '.xml';
+                $completed = array_splice($chunk, 0, $limit);
+                $index[] = [
+                    'loc' => Settings::rootUrl($name),
+                    'lastmod' => self::chunkLastmod($completed),
+                ];
+                yield $name => self::renderUrlSet($completed);
+            }
         }
 
-        if (count($chunks) === 1) {
-            $files['sitemap.xml'] = self::renderUrlSet($chunks[0]);
+        if ($chunkCount === 0) {
+            yield 'sitemap.xml' => self::renderUrlSet($chunk);
         } else {
-            $index = [];
-            foreach ($chunks as $offset => $chunk) {
-                $name = 'sitemap-' . ($offset + 1) . '.xml';
-                $files[$name] = self::renderUrlSet($chunk);
+            if (!empty($chunk)) {
+                $chunkCount++;
+                $name = 'sitemap-' . $chunkCount . '.xml';
                 $index[] = [
                     'loc' => Settings::rootUrl($name),
                     'lastmod' => self::chunkLastmod($chunk),
                 ];
+                yield $name => self::renderUrlSet($chunk);
             }
-            $files['sitemap.xml'] = self::renderSitemapIndex($index);
+
+            yield 'sitemap.xml' => self::renderSitemapIndex($index);
         }
 
         if (($settings['sitemapTxt'] ?? '1') === '1') {
-            $files['sitemap.txt'] = self::renderTextSitemap($entries);
+            yield 'sitemap.txt' => self::renderTextSitemap($locs);
         }
-
-        return $files;
     }
 
-    private static function sitemapEntries(array $settings): array
+    private static function generateEntries(array $settings): \Generator
     {
-        $entries = [[
-            'loc' => Settings::siteUrl(),
-            'lastmod' => self::iso8601((int) (Helper::options()->time ?? time())),
-            'changefreq' => (string) ($settings['sitemapFreqHome'] ?? 'daily'),
-            'priority' => (string) ($settings['sitemapPriorityHome'] ?? '1.0'),
-        ]];
+        yield self::entry(
+            Settings::siteUrl(),
+            (int) (Helper::options()->time ?? time()),
+            (string) ($settings['sitemapFreqHome'] ?? 'daily'),
+            (string) ($settings['sitemapPriorityHome'] ?? '1.0')
+        );
 
         if (($settings['sitemapPost'] ?? '1') === '1') {
-            foreach (self::postEntries($settings) as $entry) {
-                $entries[] = $entry;
-            }
+            yield from self::postEntries($settings);
         }
 
         if (($settings['sitemapPage'] ?? '1') === '1') {
-            $pages = PageRows::allocWithAlias('renewseo-pages', null, null, false)
-                ->toArray(['permalink', 'modified', 'created']);
-            foreach ($pages as $row) {
-                $entries[] = self::entry(
-                    (string) ($row['permalink'] ?? ''),
-                    (int) ($row['modified'] ?? $row['created'] ?? 0),
+            $pages = PageRows::allocWithAlias('renewseo-pages', null, null, false);
+            while ($pages->next()) {
+                yield self::entry(
+                    (string) ($pages->permalink ?? ''),
+                    (int) ($pages->modified ?? $pages->created ?? 0),
                     (string) ($settings['sitemapFreqPage'] ?? 'monthly'),
                     (string) ($settings['sitemapPriorityPage'] ?? '0.7')
                 );
@@ -391,11 +419,10 @@ class Files
         }
 
         if (($settings['sitemapCategory'] ?? '1') === '1') {
-            $categories = CategoryRows::allocWithAlias('renewseo-categories', null, null, false)
-                ->toArray(['permalink']);
-            foreach ($categories as $row) {
-                $entries[] = self::entry(
-                    (string) ($row['permalink'] ?? ''),
+            $categories = CategoryRows::allocWithAlias('renewseo-categories', null, null, false);
+            while ($categories->next()) {
+                yield self::entry(
+                    (string) ($categories->permalink ?? ''),
                     0,
                     (string) ($settings['sitemapFreqTaxonomy'] ?? 'daily'),
                     (string) ($settings['sitemapPriorityCategory'] ?? '0.6')
@@ -404,11 +431,10 @@ class Files
         }
 
         if (($settings['sitemapTag'] ?? '0') === '1') {
-            $tags = TagCloud::allocWithAlias('renewseo-tags', ['limit' => 0, 'ignoreZeroCount' => true], null, false)
-                ->toArray(['permalink']);
-            foreach ($tags as $row) {
-                $entries[] = self::entry(
-                    (string) ($row['permalink'] ?? ''),
+            $tags = TagCloud::allocWithAlias('renewseo-tags', ['limit' => 0, 'ignoreZeroCount' => true], null, false);
+            while ($tags->next()) {
+                yield self::entry(
+                    (string) ($tags->permalink ?? ''),
                     0,
                     (string) ($settings['sitemapFreqTaxonomy'] ?? 'daily'),
                     (string) ($settings['sitemapPriorityTag'] ?? '0.5')
@@ -417,22 +443,11 @@ class Files
         }
 
         if (($settings['sitemapAuthor'] ?? '0') === '1') {
-            foreach (self::authorEntries() as $entry) {
-                $entries[] = $entry;
-            }
+            yield from self::authorEntries();
         }
-
-        $unique = [];
-        foreach ($entries as $entry) {
-            if (!empty($entry['loc'])) {
-                $unique[$entry['loc']] = $entry;
-            }
-        }
-
-        return array_values($unique);
     }
 
-    private static function authorEntries(): array
+    private static function authorEntries(): \Generator
     {
         try {
             $db = Db::get();
@@ -445,10 +460,9 @@ class Files
             );
         } catch (\Throwable $e) {
             Settings::report('files.authors', $e);
-            return [];
+            return;
         }
 
-        $entries = [];
         foreach ($rows as $row) {
             $uid = (int) ($row['uid'] ?? 0);
             if ($uid <= 0) {
@@ -458,10 +472,8 @@ class Files
             if (method_exists($author, 'have') && !$author->have()) {
                 continue;
             }
-            $entries[] = self::entry((string) ($author->permalink ?? ''), 0, 'daily', '0.4');
+            yield self::entry((string) ($author->permalink ?? ''), 0, 'daily', '0.4');
         }
-
-        return $entries;
     }
 
     private static function contentUrl(Db $db, array $row): string
@@ -470,7 +482,7 @@ class Files
         $slug = (string) ($row['slug'] ?? '');
         $type = (string) ($row['type'] ?? '');
         $cid = (int) ($row['cid'] ?? 0);
-        $category = self::firstCategory($db, $cid);
+        $category = self::$sitemapCategories[$cid] ?? self::firstCategory($db, $cid);
         $directory = $category ? self::categoryDirectory($db, (int) $category['mid']) : [];
 
         $delegate = new class ($cid, $slug, $created, $category['slug'] ?? '', $directory) implements ParamsDelegateInterface {
@@ -530,6 +542,11 @@ class Files
 
     private static function categoryDirectory(Db $db, int $mid): array
     {
+        if (isset(self::$sitemapCategoryDirectories[$mid])) {
+            return self::$sitemapCategoryDirectories[$mid];
+        }
+
+        $originalMid = $mid;
         $directory = [];
         $seen = [];
 
@@ -553,7 +570,7 @@ class Files
             $mid = (int) ($row['parent'] ?? 0);
         }
 
-        return $directory;
+        return self::$sitemapCategoryDirectories[$originalMid] = $directory;
     }
 
     private static function writeFile(string $relative, string $content, array $settings): void
@@ -926,9 +943,8 @@ class Files
         return array_values(array_filter(array_unique($files)));
     }
 
-    private static function postEntries(array $settings): array
+    private static function postEntries(array $settings): \Generator
     {
-        $entries = [];
         $db = Db::get();
         $cursor = 0;
         $limit = 1000;
@@ -945,6 +961,8 @@ class Files
                     ->limit($limit)
             );
 
+            self::preloadContentCategories($db, $rows);
+
             foreach ($rows as $row) {
                 $cursor = max($cursor, (int) ($row['cid'] ?? 0));
                 $url = self::contentUrl($db, $row);
@@ -952,7 +970,7 @@ class Files
                     continue;
                 }
 
-                $entries[] = self::entry(
+                yield self::entry(
                     $url,
                     (int) ($row['modified'] ?? $row['created'] ?? 0),
                     (string) ($settings['sitemapFreqPost'] ?? 'weekly'),
@@ -961,7 +979,38 @@ class Files
             }
         } while (count($rows) === $limit);
 
-        return $entries;
+    }
+
+    private static function preloadContentCategories(Db $db, array $rows): void
+    {
+        $cids = array_values(array_filter(array_map(
+            static fn(array $row): int => (int) ($row['cid'] ?? 0),
+            $rows
+        )));
+
+        if ($cids === []) {
+            return;
+        }
+
+        $categories = $db->fetchAll(
+            $db->select('table.relationships.cid', 'table.metas.mid', 'table.metas.slug', 'table.metas.parent')
+                ->from('table.relationships')
+                ->join('table.metas', 'table.metas.mid = table.relationships.mid')
+                ->where('table.relationships.cid IN ?', $cids)
+                ->where('table.metas.type = ?', 'category')
+                ->order('table.metas.order', Db::SORT_ASC)
+        );
+
+        foreach ($categories as $category) {
+            $cid = (int) ($category['cid'] ?? 0);
+            if ($cid > 0 && !isset(self::$sitemapCategories[$cid])) {
+                self::$sitemapCategories[$cid] = [
+                    'mid' => (int) ($category['mid'] ?? 0),
+                    'slug' => (string) ($category['slug'] ?? ''),
+                    'parent' => (int) ($category['parent'] ?? 0),
+                ];
+            }
+        }
     }
 
     private static function renderUrlSet(array $entries): string
@@ -1014,7 +1063,9 @@ class Files
     {
         $lines = [];
         foreach ($entries as $entry) {
-            if (!empty($entry['loc'])) {
+            if (is_string($entry) && $entry !== '') {
+                $lines[] = $entry;
+            } elseif (!empty($entry['loc'])) {
                 $lines[] = (string) $entry['loc'];
             }
         }
