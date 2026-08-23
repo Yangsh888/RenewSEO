@@ -45,16 +45,17 @@ $freqOptions = ['always', 'hourly', 'daily', 'weekly', 'monthly', 'yearly', 'nev
         <article class="tr-panel-kpi"><strong><?php echo (int) $summary['top404']; ?></strong><span>最高命中</span></article>
     </div>
 
-    <nav class="tr-panel-tabs" aria-label="SEO 模块导航">
-        <button type="button" class="tr-panel-tab is-active" data-target="global">概览与全局</button>
-        <button type="button" class="tr-panel-tab" data-target="spiders">爬虫与收录</button>
-        <button type="button" class="tr-panel-tab" data-target="page">页面 SEO</button>
-        <button type="button" class="tr-panel-tab" data-target="push">主动推送</button>
+    <nav class="tr-panel-tabs" role="tablist" aria-label="SEO 模块导航">
+        <button type="button" id="renewseo-tab-global" role="tab" aria-controls="renewseo-panel-global" aria-selected="true" tabindex="0" class="tr-panel-tab is-active" data-target="global">概览与全局</button>
+        <button type="button" id="renewseo-tab-spiders" role="tab" aria-controls="renewseo-panel-spiders" aria-selected="false" tabindex="-1" class="tr-panel-tab" data-target="spiders">爬虫与收录</button>
+        <button type="button" id="renewseo-tab-page" role="tab" aria-controls="renewseo-panel-page" aria-selected="false" tabindex="-1" class="tr-panel-tab" data-target="page">页面 SEO</button>
+        <button type="button" id="renewseo-tab-push" role="tab" aria-controls="renewseo-panel-push" aria-selected="false" tabindex="-1" class="tr-panel-tab" data-target="push">主动推送</button>
+        <button type="button" id="renewseo-tab-monitor" role="tab" aria-controls="renewseo-panel-monitor" aria-selected="false" tabindex="-1" class="tr-panel-tab" data-target="monitor">监控与文件</button>
     </nav>
 
     <?php require __DIR__ . '/view/form.php'; ?>
 
-    <div class="tr-panel-pane is-active" data-tab="global">
+    <div id="renewseo-panel-monitor" class="tr-panel-pane" role="tabpanel" aria-labelledby="renewseo-tab-monitor" tabindex="0" data-tab="monitor">
         <?php require __DIR__ . '/view/files.php'; ?>
         <?php require __DIR__ . '/view/logs.php'; ?>
         <?php require __DIR__ . '/view/notfound.php'; ?>

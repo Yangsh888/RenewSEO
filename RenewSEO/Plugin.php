@@ -209,6 +209,8 @@ class Plugin implements PluginInterface
 
     private static function registerHooks(): void
     {
+        Hook::factory('Utils\Migration\SchemaManager')->syncSchema = [Schema::class, 'ensure'];
+
         foreach (['admin/write-post.php', 'admin/write-page.php'] as $screen) {
             Hook::factory($screen)->option = [Meta::class, 'fields'];
         }

@@ -44,7 +44,7 @@ class Meta
             }
         }
 
-        if ($archive->is('error404')) {
+        if ($archive->is('archive', '404')) {
             $archive->setArchiveDescription('请求的页面不存在或已失效');
             Log::record404($archive->request);
         }
@@ -82,7 +82,7 @@ class Meta
         $lines = [];
         $state = self::state($archive, $settings);
 
-        if ($state['canonical'] !== '' && !$archive->is('single')) {
+        if ($state['canonical'] !== '' && !$archive->is('single') && !$archive->is('archive', '404')) {
             $lines[] = '<link rel="canonical" href="' . Text::e($state['canonical']) . '" />';
         }
 
@@ -306,7 +306,7 @@ class Meta
             return $custom;
         }
 
-        if ($archive->is('error404') && ($settings['noindex404'] ?? '1') === '1') {
+        if ($archive->is('archive', '404') && ($settings['noindex404'] ?? '1') === '1') {
             return 'noindex,nofollow';
         }
         if ($archive->is('search') && ($settings['noindexSearch'] ?? '1') === '1') {
@@ -359,7 +359,7 @@ class Meta
 
     private static function timeFactorLines($archive, array $state): array
     {
-        if (!$archive->is('single') || $archive->is('error404')) {
+        if (!$archive->is('single') || $archive->is('archive', '404')) {
             return [];
         }
 
@@ -416,7 +416,7 @@ class Meta
 
     private static function articleSchema($archive, array $state): array
     {
-        if (!$archive->is('single') || $archive->is('error404')) {
+        if (!$archive->is('single') || $archive->is('archive', '404')) {
             return [];
         }
 
@@ -460,7 +460,7 @@ class Meta
 
     private static function breadcrumbSchema($archive, array $state): array
     {
-        if ($archive->is('error404')) {
+        if ($archive->is('archive', '404')) {
             return [];
         }
 
@@ -615,7 +615,7 @@ class Meta
         if ($description === '' && $archive->is('single')) {
             $description = self::summary($archive);
         }
-        if ($description === '' && !$archive->is('error404')) {
+        if ($description === '' && !$archive->is('archive', '404')) {
             $description = trim((string) (Helper::options()->description ?? ''));
         }
 

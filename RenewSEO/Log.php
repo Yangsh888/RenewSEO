@@ -5,7 +5,6 @@ namespace TypechoPlugin\RenewSEO;
 
 use Typecho\Cache;
 use Typecho\Db;
-use Utils\Schema;
 
 if (!defined('__TYPECHO_ROOT_DIR__')) {
     exit;
@@ -24,7 +23,7 @@ class Log
     public static function createTables(): void
     {
         try {
-            Schema::ensureRenewSeo(Db::get());
+            Schema::ensure(Db::get());
         } catch (\Throwable $e) {
             self::write('system', 'createTables', 'error', '', $e->getMessage());
         }
