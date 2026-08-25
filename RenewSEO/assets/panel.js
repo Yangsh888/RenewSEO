@@ -2,7 +2,10 @@
     'use strict';
 
     if (window.TypechoTabs && typeof window.TypechoTabs.init === 'function') {
-        window.TypechoTabs.init();
+        window.TypechoTabs.init({
+            labelGroupSelector: '.renewseo-list-item, .renewseo-block-item, .renewseo-field',
+            labelTextSelector: '.renewseo-list-item-title, .renewseo-field > span'
+        });
     }
 
     const toggles = [

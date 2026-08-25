@@ -21,18 +21,7 @@ class Text
             return $max <= 0 ? '' : $value;
         }
 
-        if (function_exists('mb_substr')) {
-            return mb_substr($value, 0, $max);
-        }
-
-        if (function_exists('iconv_substr')) {
-            $result = iconv_substr($value, 0, $max, 'UTF-8');
-            if ($result !== false) {
-                return $result;
-            }
-        }
-
-        return substr($value, 0, $max);
+        return mb_substr($value, 0, $max, 'UTF-8');
     }
 
     public static function time(int $timestamp): string

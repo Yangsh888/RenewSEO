@@ -770,13 +770,16 @@ class Files
             );
 
             if ($affected === 0) {
-                $db->query(
-                    $db->insert('table.options')->rows([
-                        'name' => self::STATE_OPTION,
-                        'value' => $value,
-                        'user' => 0,
-                    ])
-                );
+                try {
+                    $db->query(
+                        $db->insert('table.options')->rows([
+                            'name' => self::STATE_OPTION,
+                            'value' => $value,
+                            'user' => 0,
+                        ])
+                    );
+                } catch (\Throwable) {
+                }
             }
         } catch (\Throwable $e) {
             Settings::report('files.state.option.write', $e);
