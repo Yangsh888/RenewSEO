@@ -578,11 +578,11 @@ class Files
         $path = Settings::rootPath($relative);
         $directory = dirname($path);
         if (!is_dir($directory)) {
-            throw new \RuntimeException('目标目录不存在：' . $relative);
+            throw new \RuntimeException(_t('目标目录不存在：%s', $relative));
         }
 
         if (is_file($path) && !self::canReplaceFile($relative, $path, $settings)) {
-            throw new \RuntimeException('检测到未托管的同名文件，已停止接管：' . $relative);
+            throw new \RuntimeException(_t('检测到未托管的同名文件，已停止接管：%s', $relative));
         }
 
         $tempPath = $directory . DIRECTORY_SEPARATOR . '.' . basename($path) . '.tmp.' . bin2hex(random_bytes(6));
@@ -590,13 +590,13 @@ class Files
         $backupCreated = false;
         $written = file_put_contents($tempPath, $content, LOCK_EX);
         if ($written === false) {
-            throw new \RuntimeException('无法写入文件：' . $relative);
+            throw new \RuntimeException(_t('无法写入文件：%s', $relative));
         }
 
         try {
             if (is_file($path)) {
                 if (!rename($path, $backupPath)) {
-                    throw new \RuntimeException('无法替换文件：' . $relative);
+                    throw new \RuntimeException(_t('无法替换文件：%s', $relative));
                 }
                 $backupCreated = true;
             }
@@ -605,11 +605,11 @@ class Files
                 if ($backupCreated && is_file($backupPath)) {
                     rename($backupPath, $path);
                 }
-                throw new \RuntimeException('无法写入文件：' . $relative);
+                throw new \RuntimeException(_t('无法写入文件：%s', $relative));
             }
 
             if ($backupCreated && is_file($backupPath) && !unlink($backupPath) && is_file($backupPath)) {
-                throw new \RuntimeException('无法清理旧文件备份：' . $relative);
+                throw new \RuntimeException(_t('无法清理旧文件备份：%s', $relative));
             }
         } finally {
             if (is_file($tempPath)) {

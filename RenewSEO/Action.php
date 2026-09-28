@@ -98,7 +98,8 @@ class Action extends \Typecho\Widget
 
         foreach (array_keys(Settings::defaults()) as $key) {
             if (array_key_exists($key, $_POST)) {
-                $data[$key] = $_POST[$key];
+                $value = $_POST[$key];
+                $data[$key] = is_scalar($value) ? (string) $value : '';
             }
         }
 
@@ -125,13 +126,26 @@ class Action extends \Typecho\Widget
 
     private function testPush(): void
     {
-        $url = trim((string) $this->request->get('url'));
+        $url = trim((string) $this->request->post('url'));
         if ($url === '') {
             $this->notice('测试推送地址不能为空', 'error');
+            return;
+        }
+        if (!in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true)
+            || !filter_var($url, FILTER_VALIDATE_URL)
+            || strcasecmp((string) parse_url($url, PHP_URL_HOST), Settings::siteHost()) !== 0) {
+            $this->notice('测试推送地址无效', 'error');
+            return;
         }
 
         $result = Push::manualUrl($url);
-        $ok = !empty($result['baidu']['ok']) || !empty($result['indexnow']['ok']) || !empty($result['bing']['ok']);
+        $ok = false;
+        foreach (['baidu', 'indexnow', 'bing'] as $channel) {
+            if (!empty($result[$channel]['ok']) && empty($result[$channel]['skipped'])) {
+                $ok = true;
+                break;
+            }
+        }
         if ($ok) {
             $this->notice('手动推送已执行');
             return;
